@@ -3,7 +3,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const scene = new THREE.Scene();
-const canvas = document.getElementById('experience-canvas')
+const canvas = document.getElementById('experience-canvas');
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
 const sizes = {
     width: window.innerWidth,
     height: window.innerHeight
@@ -11,19 +13,66 @@ const sizes = {
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.75;
 
-const light = new THREE.AmbientLight(0x404040, 3); // soft white light
-scene.add(light);
+const modalContent = {
+    Board: {
+        title: "Project",
+        content: "this is project",
+    },
+    heels: {
+        title: "Heels",
+        content: "Poorly made character",
+    }
+    // Add more as needed
+};
+
+const modal = document.querySelector(".modal");
+const modalTitle = document.querySelector(".title");
+const modalText = document.querySelector(".text");
+const closeButton = document.querySelector(".exit");
+const modalContentDiv = document.querySelector(".modal-content");
+
+function showModal(id) {
+    const content = modalContent[id];
+    if (content) {
+        modalTitle.textContent = content.title;
+        modalText.textContent = content.content;
+        modal.classList.toggle("hidden");
+    }
+}
+
+function hideModal() {
+    modal.classList.toggle("hidden");
+}
+
+let intersectObject = '';
+const intersectObjects = [];
+const intersectObjectsNames = [
+    'heels',
+    'Board',
+    'Ground',
+    'Scene'
+]
+
 
 const loader = new GLTFLoader();
 
 loader.load('./Three.glb', function (glb) {
     glb.scene.traverse((child) => {
+
+        if (intersectObjectsNames.includes(child.name)) {
+            intersectObjects.push(child);
+        }
+
         if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
         }
+        // console.log(child);
     })
     scene.add(glb.scene);
 
@@ -35,31 +84,36 @@ loader.load('./Three.glb', function (glb) {
 
 const aspect = sizes.width / sizes.height
 const camera = new THREE.OrthographicCamera(
-    -aspect * 50,
-    aspect * 50,
-    50,
-    -50,
+    -aspect * 15,
+    aspect * 15,
+    15,
+    -15,
     1,
     1000);
 scene.add(camera);
 
 
-camera.position.x = 13.098375590544478;
-camera.position.y = 11.918674548494824;
-camera.position.z = 10.514142313888662;
+camera.position.x = 13;
+camera.position.y = 11;
+camera.position.z = 10;
 
 const controls = new OrbitControls(camera, canvas);
 controls.update();
 
+const light = new THREE.AmbientLight(0x404040, 3); // soft white light
+scene.add(light);
+
 // White directional light at half intensity shining from the top.
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+const directionalLight = new THREE.DirectionalLight(0xffffff);
 directionalLight.castShadow = true;
-directionalLight.position.set(10,50,0);
-directionalLight.target.position.set(50,20,0);
+directionalLight.position.set(20, 60, 20);
+directionalLight.shadow.mapSize.width = 4096;
+directionalLight.shadow.mapSize.height = 4096;
+directionalLight.target.position.set(50, 20, 0);
 directionalLight.shadow.camera.left = -100;
 directionalLight.shadow.camera.right = 100;
 directionalLight.shadow.camera.top = 100;
-directionalLight.shadow.camera.top = -100;
+directionalLight.shadow.camera.bottom = -100;
 directionalLight.shadow.normalBias = 0.1;
 scene.add(directionalLight);
 
@@ -82,11 +136,41 @@ function handleResize() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 }
 
+function handlePointerMove(event) {
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
+}
+
+function handleClick(event) {
+    console.log(intersectObject);
+    if (intersectObject !== '') {
+        showModal(intersectObject);
+    }
+
+}
+
+closeButton.addEventListener("click", hideModal);
 window.addEventListener('resize', handleResize);
+window.addEventListener('click', handleClick);
+window.addEventListener('pointermove', handlePointerMove);
 
 function animate() {
+    raycaster.setFromCamera(pointer, camera);
+
+    const intersects = raycaster.intersectObjects(intersectObjects);
+
+    if (intersects.length > 0) {
+        document.body.style.cursor = 'pointer';
+    } else {
+        document.body.style.cursor = 'default';
+        intersectObject = "";
+    }
+
+    for (let i = 0; i < intersects.length; i++) {
+        // console.log(intersects[0].object.parent.name);
+        intersectObject = intersects[0].object.parent.name;
+    }
 
     renderer.render(scene, camera);
-
 }
 renderer.setAnimationLoop(animate);
